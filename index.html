@@ -73,6 +73,9 @@ th{font-size:12px;color:var(--mut);font-weight:600}
 .big{font-family:Fraunces,serif;font-size:44px;font-weight:700;line-height:1}
 .warn{padding:10px 14px;border-radius:10px;background:#f2bb43;color:#2b2006;font-weight:600;margin:10px 0}
 .warn.r{background:#ef6f6f;color:#2e0d0d}
+#undo{position:fixed;left:18px;bottom:20px;z-index:60;display:none;align-items:center;gap:12px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 16px;font-size:13px;box-shadow:0 6px 22px rgba(0,0,0,.4)}
+#undo button{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px;border-radius:999px;border:0;background:var(--goldbg);color:#241a22;font-weight:700;cursor:pointer}
+@media(max-width:700px){#undo{left:12px;right:12px;bottom:76px;justify-content:space-between}}
 #toast{box-shadow:0 4px 20px rgba(0,0,0,.35);position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#f6eee3;color:#171016;padding:12px 18px;border-radius:10px;font-weight:600;z-index:9;display:none;max-width:90%}
 .titulo{display:inline-block;border:2px solid var(--gold);border-radius:14px;padding:8px 20px;background:linear-gradient(135deg,rgba(110,29,58,.28),transparent)}
 .rol{display:inline-block;padding:3px 10px;border-radius:999px;background:var(--goldbg);color:#241a22;font-size:13px;font-weight:700;margin:2px 4px 2px 0}.rol small{opacity:.7;font-weight:600}
@@ -394,7 +397,7 @@ function render(){
   if(view.rolSel){const e=document.getElementById('rol-'+view.rolSel);if(e)e.scrollIntoView({block:'center'})}
  const sl=document.querySelector('.dia.sel');if(sl&&sl.parentElement){const c=sl.parentElement;c.scrollLeft=sl.offsetLeft-c.clientWidth/2+sl.clientWidth/2;if(c.scrollHeight>c.clientHeight+4)c.scrollTop=sl.offsetTop-c.clientHeight/2+sl.clientHeight/2}
 }
-function head(p,extra=''){return `<div style="margin-bottom:18px" class="noprint"><div class="muted">${p.curso==='4ESO'?'4º ESO':'1º Bachillerato'} · ${esc(p.optativa||'')}${p.estado==='archivado'?' · archivado':''}</div><div class="titulo"><h1 style="font-size:32px">${esc(p.nombre)}</h1></div>${extra}</div>`}
+function head(p,extra=''){return `<div style="margin-bottom:18px" class="noprint"><div class="row" style="justify-content:space-between;align-items:center"><div class="muted">${p.curso==='4ESO'?'4º ESO':'1º Bachillerato'} · ${esc(p.optativa||'')}${p.estado==='archivado'?' · archivado':''}</div>${YO?'':`<button class="ib" data-act="copiaseg" title="Copia de seguridad de este musical" aria-label="Copia de seguridad de este musical">${IC.dl}</button>`}</div><div class="titulo"><h1 style="font-size:32px">${esc(p.nombre)}</h1></div>${extra}</div>`}
 function vHome(){
   const act=DB.proyectos.filter(p=>p.estado==='activo');
   return `<div class="row" style="justify-content:space-between;margin-bottom:20px"><div><div class="muted">Tus proyectos</div><h1 style="font-size:36px">Mis musicales</h1></div></div>
@@ -403,7 +406,8 @@ function vHome(){
   <form data-form="nuevo" style="margin-top:14px"><div class="fg"><label>Nombre del musical<input name="nombre" required></label>
   <label>Grupo<select name="curso"><option value="4ESO">4º ESO · Creaciones escénico-musicales</option><option value="1BACH">1º Bachillerato · Música, espectáculo y comunicación</option></select></label>
   <label>Inicio<input type="date" name="fecha_inicio" value="${hoy()}"></label><label>Fin<input type="date" name="fecha_fin"></label></div>
-  <div><button class="btn gold" type="submit">Crear musical</button></div></form></details>`;
+  <div><button class="btn gold" type="submit">Crear musical</button></div></form></details>
+  <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn sm" data-act="copiaseg" data-all="1" title="Descarga todos tus musicales en un archivo">${IC.dl} Copia de seguridad</button></div>`;
 }
 function subtabs(list,cur,act){return `<div class="sub noprint">${list.map(([k,l])=>`<button class="${cur===k?'on':''}" data-act="${act}" data-v="${k}">${l}</button>`).join('')}</div>`}
 function grupoSel(p){
@@ -450,11 +454,12 @@ function agenda(p){
 }
 function estadoDe(p,d){const s=d.ses,g=GID();if(s&&s.sin_clase)return 'sinclase';if(s&&cerrDia(s,g))return 'cerrado';if(d.festivo&&!s)return 'festivo';const n=s?DB.marcas.filter(x=>x.sesion_id===s.id&&DB.alumnos.some(a=>a.id===x.alumno_id&&a.grupo_id===g)).length:0;return n?'curso':'pend'}
 const pendientes=p=>{const hy=hoy();return agenda(p).filter(d=>d.tipo==='clase'&&d.fecha<=hy&&['pend','curso'].includes(estadoDe(p,d)))};
-const previosDe=(p,d)=>pendientes(p).filter(x=>x.fecha<d.fecha||(x.fecha===d.fecha&&x.clave<d.clave));
+const diasSinCerrar=(p,e)=>listaEval(p,agenda(p),e).filter(d=>d.tipo==='clase'&&d.fecha<=hoy()&&['pend','curso'].includes(estadoDe(p,d)));
 function selActual(p,ag){
   const v=view.sel;if(v){const d=ag.find(x=>x.fecha===v.fecha&&x.clave===v.clave);if(d)return d}
-  const pe=pendientes(p);if(pe.length)return pe[0];
-  const hy=hoy(),pas=ag.filter(d=>d.fecha<=hy&&estadoDe(p,d)!=='festivo');
+  const hy=hoy(),hoyClase=ag.filter(d=>d.tipo==='clase'&&d.fecha<=hy&&!['festivo','sinclase'].includes(estadoDe(p,d)));
+  if(hoyClase.length)return hoyClase[hoyClase.length-1];
+  const pas=ag.filter(d=>d.fecha<=hy&&estadoDe(p,d)!=='festivo');
   return pas.length?pas[pas.length-1]:(ag.find(d=>estadoDe(p,d)!=='festivo')||ag[0]);
 }
 async function sesionSel(p){const d=selActual(p,agenda(p));if(!d)return null;if(d.ses)return d.ses;const r=await ins('sesiones',{proyecto_id:p.id,fecha:d.fecha,clave:d.clave,tipo:'clase',nombre:'',peso:1,evaluacion:evDeSeguro(p,d.fecha),cerrada:false,sin_clase:false});return r&&r[0]}
@@ -465,6 +470,8 @@ const IC={
   fest:'<svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
   ok:'<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7"/></svg>'
 };
+IC.dl='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg>';
+IC.undo='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>';
 IC.edit='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
 IC.nota='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-5.5A8 8 0 1 1 21 12z"/></svg>';
 IC.lupa='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>';
@@ -480,7 +487,7 @@ function vHoy(p){
   const extra=YO?'':`<details class="card noprint" style="margin-top:12px"><summary style="cursor:pointer;font-weight:600;color:var(--gold)">Añadir un día extra (ensayo, Vico, función…)</summary><form data-form="extra" style="margin-top:12px"><div class="fg"><label>Qué es<input name="nombre" list="extras" required placeholder="Ensayo extra"><datalist id="extras"><option value="Ensayo extra"><option value="Ensayo en el Teatro Vico"><option value="Función"></datalist></label><label>Fecha<input type="date" name="fecha" value="${hoy()}" required></label><label>Cuánto cuenta<select name="peso"><option value="0.5">La mitad (×0,5)</option><option value="1" selected>Como un día normal (×1)</option><option value="2">El doble (×2)</option></select></label><label>Otro valor (opcional)<input type="number" step="0.1" min="0.1" name="peso_otro" placeholder="por ejemplo 3"></label></div><div><button class="btn gold">Añadir</button></div></form></details>`;
   if(!ag.length)return `<div class="phone"><div class="card"><b>Todavía no hay días de clase.</b><p class="muted">Configura tus días y horas en Configuración → Horario y calendario, o añade un día extra.</p><button class="btn gold" data-act="irhorario">Ir al horario</button></div>${extra}</div>`;
   const sel=selActual(p,ag),est=estadoDe(p,sel),s=sel.ses,ev=s?s.evaluacion:evDeSeguro(p,sel.fecha);
-  const marks=s?DB.marcas.filter(m=>m.sesion_id===s.id):[],pend=als.filter(a=>!marks.some(m=>m.alumno_id===a.id)&&!(s&&apDe(s.id,a.id))),previos=previosDe(p,sel),falMot=als.filter(a=>{const m=marks.find(x=>x.alumno_id===a.id);return m&&(pendMotivo(m)||pendMotivoRol(m))}),falRol=als.filter(a=>{const m=marks.find(x=>x.alumno_id===a.id);return m&&pendRol(m,ev)});
+  const marks=s?DB.marcas.filter(m=>m.sesion_id===s.id):[],pend=als.filter(a=>!marks.some(m=>m.alumno_id===a.id)&&!(s&&apDe(s.id,a.id))),otrosPend=pendientes(p).filter(d=>!(d.fecha===sel.fecha&&d.clave===sel.clave)),falMot=als.filter(a=>{const m=marks.find(x=>x.alumno_id===a.id);return m&&(pendMotivo(m)||pendMotivoRol(m))}),falRol=als.filter(a=>{const m=marks.find(x=>x.alumno_id===a.id);return m&&pendRol(m,ev)});
   const rest=ag.filter(d=>d.tipo==='clase'&&d.fecha>=hoy()&&!['festivo','sinclase','cerrado'].includes(estadoDe(p,d))).length;
   const evOf=d=>d.ses?d.ses.evaluacion:evDeSeguro(p,d.fecha);
   const tab=view.evTab||evOf(sel),lst=listaEval(p,ag,tab),idx=lst.findIndex(d=>d.fecha===sel.fecha&&d.clave===sel.clave);
@@ -491,8 +498,6 @@ function vHoy(p){
   const nav=lst.length?`<div class="daynav">${flecha(prev,-1)}<div class="strip win">${vent.map(btnDia).join('')}</div>${flecha(next,1)}</div><details class="drawer"><summary>Ver todos los días de la ${tab}ª evaluación (${lst.length})</summary><div class="strip all">${lst.map(btnDia).join('')}</div></details>`:`<div class="card muted">No hay días de clase en la ${tab}ª evaluación. Revisa el horario y las fechas en Configuración.</div>`;
   const horaTxt=sel.ini?` · ${sel.hora} hora (${sel.ini}–${sel.fin})`:'';
   const cab=`${evBtns}${nav}<div class="muted" style="margin:8px 0">${DOWL[new Date(sel.fecha+'T12:00:00').getDay()]} ${fd(sel.fecha)}${horaTxt}${sel.tipo==='extra'?' · '+esc(sel.nombre)+' ×'+fmt(sel.peso):''}</div>`;
-  if(previos.length&&est!=='festivo'&&est!=='sinclase')return `<div class="phone">${cab}<div class="warn r">Antes de evaluar este día, completa los que dejaste pendientes.</div>${previos.map(d=>{const n=d.ses?als.filter(a=>!DB.marcas.some(m=>m.sesion_id===d.ses.id&&m.alumno_id===a.id)&&!apDe(d.ses.id,a.id)).length:als.length;
-    return `<div class="card"><b>${DOW[new Date(d.fecha+'T12:00:00').getDay()]} ${fd(d.fecha)}</b> · faltan ${n} alumno(s) por marcar<div class="row" style="margin-top:10px"><button class="btn gold" data-act="completar" data-f="${d.fecha}" data-k="${d.clave}">Completar ese día</button>${YO?'':`<button class="btn red" data-act="sinclase" data-f="${d.fecha}" data-k="${d.clave}">Festivo / sin clase</button>`}</div></div>`}).join('')}</div>`;
   if(est==='festivo')return `<div class="phone">${cab}<div class="card"><b>Festivo${festivoDe(p,sel.fecha)?': '+esc(festivoDe(p,sel.fecha).nombre||''):''}</b><p class="muted">Este día no cuenta para la nota. Para cambiarlo, edita los festivos en Configuración → Horario y calendario.</p></div>${extra}</div>`;
   if(est==='sinclase')return `<div class="phone">${cab}<div class="card"><b>Marcado como festivo / sin clase</b><p class="muted">No cuenta para la nota.</p><button class="btn gold" data-act="convertir" data-f="${sel.fecha}" data-k="${sel.clave}">Convertir en día de clase</button></div>${extra}</div>`;
   const lstE=listaEval(p,ag,ev).filter(d=>d.tipo==='clase'&&!['festivo','sinclase'].includes(estadoDe(p,d))),ult=lstE.slice(-2),pv=pendientesVal(p,ev,GID());
@@ -500,7 +505,7 @@ function vHoy(p){
   const locked=est==='cerrado',cierre=!!view.cerrando&&!locked,lista=cierre?als.filter(a=>pend.includes(a)||falMot.includes(a)||falRol.includes(a)):als,r=reglas(p);
   return `<div class="phone">${cab}
   <div class="row" style="margin-bottom:8px"><span class="stchip ${locked?'fill':''}" style="--k:${stCol[est]}">${stIc[est]}${stTxt[est]}${est==='curso'||est==='pend'?' · '+(als.length-pend.length)+' de '+als.length:''}</span>${sel.tipo==='clase'?`<span class="muted" style="font-size:13px">Quedan ${rest} clase(s) por delante</span>`:''}<button class="ib" data-act="hoja" style="margin-left:auto;font-weight:800" title="Qué significa cada color" aria-label="Qué significa cada color">?</button></div>
-  <div class="prog"><i style="width:${als.length?(als.length-pend.length)*100/als.length:0}%"></i></div>${finBanner}
+  <div class="prog"><i style="width:${als.length?(als.length-pend.length)*100/als.length:0}%"></i></div>${finBanner}${otrosPend.length?`<div class="warn">Tienes ${otrosPend.length} día${otrosPend.length>1?'s':''} anterior${otrosPend.length>1?'es':''} sin cerrar: ${otrosPend.map(d=>`<button class="btn sm" style="margin:2px 4px 2px 0" data-act="irdia" data-f="${d.fecha}" data-k="${d.clave}">${DOW[new Date(d.fecha+'T12:00:00').getDay()].slice(0,3)} ${fd(d.fecha).slice(0,5)}</button>`).join('')}</div>`:''}
   ${locked?'<div class="lockbar"><span>Día cerrado: no se puede cambiar.</span><button class="btn" data-act="reabrir" style="margin-left:auto">Reabrir</button></div>':''}
   ${cierre?((pend.length||falMot.length||falRol.length)?`<div class="warn r">${pend.length?`Faltan ${pend.length} alumno(s) por marcar. `:''}${falMot.length?`Falta el motivo de ${falMot.length} alumno(s) en naranja o rojo. `:''}${falRol.length?`Falta elegir el rol de ${falRol.length} alumno(s). `:''}El día no se cierra hasta completarlo.</div>`:'<div class="warn" style="background:var(--ok);color:#fff">Todo completo. Ya puedes cerrar el día.</div>'):''}
   <div class="${locked?'locked':''}"><div class="cards lista-hoy">${lista.length?lista.map(a=>{const m=marks.find(x=>x.alumno_id===a.id),ap=s?apDe(s.id,a.id):null,c=m?m.color:null,has=!!c||!!ap,col=COLORES.includes(c)?`var(--c-${c})`:c==='falta'?'var(--f-bd)':c==='falta_j'?'var(--j-bg)':'var(--line)';
@@ -522,7 +527,7 @@ function vHoy(p){
 }
 const pendientesVal=(p,e,gid)=>alumnosDe(p,gid).reduce((t,a)=>t+DB.asignaciones.filter(x=>x.alumno_id===a.id&&asgEvs(x).includes(e)&&!valEf(a.id,x.rol_id,e)).length,0);
 function vFinEval(p){
-  const e=view.evFin||evActual(p),gid=GID(),cerr=evCerrada(p,e,gid),als=alumnosDe(p,gid),idsG=new Set(als.map(a=>a.id)),r=reglas(p),pend=pendientesVal(p,e,gid),pm=DB.valoraciones.filter(v=>v.proyecto_id===p.id&&Number(v.evaluacion)===e&&idsG.has(v.alumno_id)&&pendMotivo(v)).length;
+  const e=view.evFin||evActual(p),gid=GID(),dsinc=diasSinCerrar(p,e),cerr=evCerrada(p,e,gid),als=alumnosDe(p,gid),idsG=new Set(als.map(a=>a.id)),r=reglas(p),pend=pendientesVal(p,e,gid),pm=DB.valoraciones.filter(v=>v.proyecto_id===p.id&&Number(v.evaluacion)===e&&idsG.has(v.alumno_id)&&pendMotivo(v)).length;
   const seg=`<div class="seg noprint" style="max-width:520px">${[1,2,3].map(x=>`<button class="${e===x?'on':''}" data-act="evfin" data-v="${x}">${x}ª evaluación ${evCerrada(p,x,gid)?'🔒':''}</button>`).join('')}</div>`;
   const rows=als.map(a=>{const as=DB.asignaciones.filter(x=>x.alumno_id===a.id&&asgEvs(x).includes(e));
     return `<div class="al"><div class="t"><b><a href="#" class="lnk" data-act="ficha" data-id="${a.id}">${nAl(a)}</a></b><span>${as.length?'':'<span class="chip r">sin rol en la '+e+'ª</span>'}</span></div>${as.map(x=>{const ro=DB.roles.find(q=>q.id===x.rol_id)||{},v=DB.valoraciones.find(q=>q.alumno_id===a.id&&q.rol_id===x.rol_id&&Number(q.evaluacion)===e),nn=v&&(v.color==='naranja'||v.color==='rojo'),apv=apVal(a.id,x.rol_id,e);
@@ -531,7 +536,7 @@ function vFinEval(p){
       return `<div class="vr"><span class="rol" style="margin:0">${esc(ro.nombre||'?')}</span>${colorBtns(v?v.color:null,'valrol',`data-a="${a.id}" data-r="${x.rol_id}" data-e="${e}"`,cerr,null,true)}${v?mc:(apv?'':'<span class="tag">Sin valorar</span>')}${apvChip}</div>`}).join('')}</div>`}).join('');
   return `${seg}<div class="card" style="margin-top:12px"><div class="row" style="justify-content:space-between"><div><b>Valoración de los roles de la ${e}ª evaluación</b><div class="muted" style="font-size:13px;margin-top:4px">Un toque por rol: cómo lo ha desempeñado durante toda la evaluación. Pesa un ${100-r.peso_diaria} % de la parte de clase.</div></div><span class="stchip ${cerr?'fill':''}" style="--k:${cerr?'var(--st-fin)':'var(--st-prog)'}">${cerr?IC.fin+'Cerrada':IC.curso+'Abierta'}</span></div>
   <div class="row" style="margin-top:10px">${pend?`<span class="chip y">Faltan ${pend} valoración(es)</span>`:'<span class="chip g">Todos los roles valorados</span>'}${pm?`<span class="chip r">Falta el motivo en ${pm}</span>`:''}${cerr?'<button class="btn sm" data-act="reabrirval" style="margin-left:auto">Reabrir evaluación</button>':'<button class="btn gold" data-act="cerrarval" style="margin-left:auto">Cerrar la '+e+'ª evaluación</button>'}</div>
-  <div class="muted" style="font-size:12px;margin-top:8px">Mientras la evaluación esté abierta, <i>Evaluar</i> muestra solo la nota de clase. Al cerrarla se suma la actuación (${r.peso_actuacion} %).</div></div>
+  ${dsinc.length?`<div class="warn" style="margin:12px 0 0">Antes de cerrar la ${e}ª evaluación hay que cerrar estos días (o marcarlos como sin clase): ${dsinc.map(d=>`<button class="btn sm" style="margin:2px 4px 2px 0" data-act="irdia" data-f="${d.fecha}" data-k="${d.clave}">${fd(d.fecha).slice(0,5)}</button>`).join('')}</div>`:''}<div class="muted" style="font-size:12px;margin-top:8px">Mientras la evaluación esté abierta, <i>Evaluar</i> muestra solo la nota de clase. Al cerrarla se suma la actuación (${r.peso_actuacion} %).</div></div>
   <div class="cards ${cerr?'locked':''}">${rows||'<div class="card muted">Añade alumnos en Configuración.</div>'}</div>`;
 }
 function vHoyAp(p){
@@ -580,7 +585,7 @@ function vEval(p){
     return `<tr><td>${puedeFicha(a)?`<a href="#" data-act="ficha" data-id="${a.id}" style="color:var(--gold);font-weight:600">${nAl(a)}</a>`:`<span style="font-weight:600">${nAl(a)}</span>`}${esAdaptado(a)?' <span class="chip y">Adaptada</span>':''}${DB.grupos.filter(g=>g.proyecto_id===p.id).length>1?` <span class="muted" style="font-size:11px">${esc((grupoDe(a)||{}).nombre||'')}</span>`:''}</td>${f.ev.map(x=>`<td>${chip(x)}</td>`).join('')}${b?`<td>${fmt(f.vico.nota)}${f.vico.sinJust?' <span class="chip r lnk" data-act="irvico">sin just.</span>':''}${f.vicoPend?' <span class="chip y lnk" data-act="irvico">manual</span>':''}</td>`:''}
     <td>${(()=>{const l=`data-act="ficha" data-id="${a.id}" data-go="faltas" style="cursor:pointer"`;return (fsj?`<span class="chip r" ${l}>${fsj} sin just.</span> `:'')+(maxJ>=r.aviso_rojo?`<span class="chip r" ${l}>${maxJ} just.</span>`:maxJ>=r.aviso_amarillo?`<span class="chip y" ${l}>${maxJ} just.</span>`:maxJ?`<span class="chip" ${l}>${maxJ} just.</span>`:'')})()}</td>
     <td><span class="nota">${fmt(f.final)}</span>${f.tope?` <span class="chip r" data-act="ficha" data-id="${a.id}" style="cursor:pointer">tope</span>`:''}</td><td>${f.final===null?'—':Math.round(f.final)+' / '+Math.floor(f.final)}</td><td>${man!==null&&man!==undefined?`<b style="color:var(--gold)">${fmt(man)}</b>`:'—'}</td></tr>`}).join('');
-  return head(p)+`<div class="row noprint" style="margin-bottom:12px"><button class="btn gold" data-act="pdfgrupo">PDF de la evaluación</button>${[1,2,3].map(e=>{const gs=gruposDe(p),n=gs.filter(g=>evCerrada(p,e,g.id)).length,t=n===gs.length&&gs.length?'cerrada':n?'parcial':'abierta';return `<span class="chip ${t==='cerrada'?'g':'y'}" style="cursor:pointer" data-act="irfin" data-e="${e}" title="Ir a Fin de evaluación">${e}ª ${t}</span>`}).join('')}</div><div class="card scroll"><table><tr><th>Alumno/a</th><th>1ª</th><th>2ª</th><th>3ª</th>${b?'<th>Vico</th>':''}<th>Faltas</th><th>Final calculada</th><th>Redond. / trunc.</th><th>Nota manual</th></tr>${rows||'<tr><td colspan="9" class="muted">Sin alumnos.</td></tr>'}</table></div>
+  return head(p)+`<div class="row noprint" style="margin-bottom:12px"><button class="btn gold" data-act="pdfgrupo">PDF de la evaluación</button><button class="btn" data-act="xlsnotas" title="Descargar las notas en un archivo que abre Excel">${IC.dl} Exportar a Excel</button>${[1,2,3].map(e=>{const gs=gruposDe(p),n=gs.filter(g=>evCerrada(p,e,g.id)).length,t=n===gs.length&&gs.length?'cerrada':n?'parcial':'abierta';return `<span class="chip ${t==='cerrada'?'g':'y'}" style="cursor:pointer" data-act="irfin" data-e="${e}" title="Ir a Fin de evaluación">${e}ª ${t}</span>`}).join('')}</div><div class="card scroll"><table><tr><th>Alumno/a</th><th>1ª</th><th>2ª</th><th>3ª</th>${b?'<th>Vico</th>':''}<th>Faltas</th><th>Final calculada</th><th>Redond. / trunc.</th><th>Nota manual</th></tr>${rows||'<tr><td colspan="9" class="muted">Sin alumnos.</td></tr>'}</table></div>
   <p class="muted">La nota por evaluación se corta en 10; el trabajo real aparece aparte cuando lo supera. La 3ª evaluación no se publica: se pone la nota final. Solo cuentan los días cerrados.</p>`;
 }
 function vFicha(p){
@@ -912,15 +917,14 @@ const A={
   logout:async()=>{await sb.auth.signOut()},
   amode:el=>{auth.mode=el.dataset.v;renderLogin()},
   dia:el=>{view.sel={fecha:el.dataset.f,clave:el.dataset.k};view.evTab=null;view.cerrando=false;render()},
-  completar:el=>{view.sel={fecha:el.dataset.f,clave:el.dataset.k};view.evTab=null;view.cerrando=true;render()},
+  irdia:el=>{view.tab='dia';view.sub='hoy';view.sel={fecha:el.dataset.f,clave:el.dataset.k};view.evTab=null;view.cerrando=false;window.scrollTo(0,0);render()},
   irhorario:()=>{view.tab='conf';view.conf='horario';render()},
   evtab:el=>{const p=P(),e=+el.dataset.v,ag=agenda(p),lst=listaEval(p,ag,e),hy=hoy();
-    const pend=lst.filter(d=>d.tipo==='clase'&&d.fecha<=hy&&['pend','curso'].includes(estadoDe(p,d))),pas=lst.filter(d=>d.fecha<=hy&&estadoDe(p,d)!=='festivo'),d=pend[0]||pas[pas.length-1]||lst.find(x=>estadoDe(p,x)!=='festivo')||lst[0];
+    const pend=lst.filter(d=>d.tipo==='clase'&&d.fecha<=hy&&['pend','curso'].includes(estadoDe(p,d))),pas=lst.filter(d=>d.fecha<=hy&&estadoDe(p,d)!=='festivo'),hoyD=pas.filter(d=>d.tipo==='clase'&&estadoDe(p,d)!=='sinclase'),d=(e===evActual(p)&&hoyD.length?hoyD[hoyD.length-1]:null)||pend[0]||pas[pas.length-1]||lst.find(x=>estadoDe(p,x)!=='festivo')||lst[0];
     view.evTab=e;if(d)view.sel={fecha:d.fecha,clave:d.clave};view.cerrando=false;render()},
   mark:async el=>{const p=P(),ag=agenda(p),d=selActual(p,ag);if(!d)return;const est=estadoDe(p,d);
     if(est==='cerrado')return toast('Día cerrado: pulsa Reabrir para cambiar una marca.');
     if(est==='festivo'||est==='sinclase')return toast('Ese día no es de clase.');
-    if(previosDe(p,d).length)return toast('Completa antes los días pendientes.');
     const s=await sesionSel(p);if(!s)return;const aid=el.dataset.a,m=DB.marcas.find(x=>x.sesion_id===s.id&&x.alumno_id===aid),nc=nextColor(m?m.color:null,el.dataset.c);
     DB.marcas=DB.marcas.filter(x=>x!==m);
     if(!nc){
@@ -988,7 +992,8 @@ const A={
     const row={id:cur?cur.id:uid(),proyecto_id:p.id,alumno_id:aid,rol_id:rid,evaluacion:e,color:c,motivos:nn?(eraNn&&Array.isArray(cur.motivos)?cur.motivos:[]):null,comentario:cur?(cur.comentario||''):''};
     DB.valoraciones=DB.valoraciones.filter(v=>v!==cur);DB.valoraciones.push(row);if(nn&&!eraNn)view.motivo={kind:'val',mid:row.id};render();
     const {error}=await sb.from('pe_valoraciones').upsert(row,{onConflict:'alumno_id,rol_id,evaluacion'});if(error)fail(error)},
-  cerrarval:async()=>{const p=P(),e=view.evFin||evActual(p),gid=GID(),idsG=new Set(alumnosDe(p,gid).map(a=>a.id)),pm=DB.valoraciones.filter(v=>v.proyecto_id===p.id&&Number(v.evaluacion)===e&&idsG.has(v.alumno_id)&&pendMotivo(v)).length;
+  cerrarval:async()=>{const p=P(),e=view.evFin||evActual(p),gid=GID(),dsc=diasSinCerrar(p,e);if(dsc.length)return toast(`No se puede cerrar la ${e}ª evaluación: faltan por cerrar ${dsc.length} día(s) (${dsc.slice(0,6).map(d=>fd(d.fecha).slice(0,5)).join(', ')}${dsc.length>6?'…':''}). Cada día debe estar cerrado o marcado como sin clase.`,9000);const 
+      idsG=new Set(alumnosDe(p,gid).map(a=>a.id)),pm=DB.valoraciones.filter(v=>v.proyecto_id===p.id&&Number(v.evaluacion)===e&&idsG.has(v.alumno_id)&&pendMotivo(v)).length;
     if(pm)return toast(`Falta el motivo en ${pm} valoración(es) en naranja o rojo. La evaluación no se cierra hasta completarlo.`,7000);
     const fv=pendientesVal(p,e,gid);if(!confirm(fv?`Quedan ${fv} rol(es) sin valorar: se calcularán solo con la media diaria. ¿Cerrar la ${e}ª evaluación?`:`¿Cerrar la ${e}ª evaluación? A partir de ahora su nota incluye la actuación.`))return;
     const ex=DB.cierres.find(c=>c.proyecto_id===p.id&&c.grupo_id===gid&&Number(c.evaluacion)===e);if(ex)await upd('cierres',ex.id,{cerrada:true});else await ins('cierres',{proyecto_id:p.id,grupo_id:gid,evaluacion:e,cerrada:true,fecha:hoy()});toast('Evaluación cerrada');render()},
@@ -1026,6 +1031,15 @@ const A={
   copiaenlace:async el=>{const x=DB.profesores.find(q=>q.id===el.dataset.id);if(!x)return;const url=location.href.split('#')[0].split('?')[0]+'?t='+x.token;try{await navigator.clipboard.writeText(url);toast('Enlace copiado')}catch(e){prompt('Copia este enlace:',url)}},
   regenlink:async el=>{const x=DB.profesores.find(q=>q.id===el.dataset.id);if(!x)return;if(confirm('¿Crear un enlace nuevo para '+x.nombre+'? El anterior dejará de funcionar.')){await upd('profesores',x.id,{token:uid().replace(/-/g,'')+uid().replace(/-/g,'').slice(0,8)});toast('Enlace nuevo creado');render()}},
   delenl:async el=>{const e=DB.enlaces.find(q=>q.id===el.dataset.id);if(e&&confirm('¿Quitar «'+e.nombre+'»?')){await del('enlaces',e.id);render()}},
+  copiaseg:el=>{const todo=el.dataset.all==='1',ps=todo?DB.proyectos:[P()],ids=new Set(ps.map(x=>x.id)),out={app:'CEM · Creación Escénico-Musical',version:1,fecha:new Date().toISOString(),proyectos:ps,datos:{}};
+    Object.keys(TBL).forEach(k=>{if(k!=='proyectos')out.datos[k]=DB[k].filter(r=>ids.has(r.proyecto_id)).map(r=>k==='profesores'?(({token,...q})=>q)(r):r)});
+    bajar(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}),`CEM-copia-${todo?'todos-los-musicales':nombreArchivo(ps[0].nombre)}-${hoy()}.json`);toast('Copia de seguridad descargada')},
+  xlsnotas:()=>{const p=P(),n=v=>v===null||v===undefined||isNaN(v)?'':String(Math.round(v*100)/100).replace('.',','),t=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+    const filas=[['Nº','Alumno/a','Grupo','1ª evaluación','2ª evaluación','3ª evaluación','Nota final calculada','Redondeada','Manual','Nota a publicar'].map(t)];
+    alumnosDe(p).forEach(a=>{const f=calcFinal(p,a),ev=f.ev.map(x=>x.nota===null?null:(x.notaFinalEv??x.nota)),man=a.nota_manual!==null&&a.nota_manual!==undefined&&a.nota_manual!=='',red=f.final===null?null:Math.round(f.final),pub=man?Number(a.nota_manual):red;
+      filas.push([numDe(a)??'',t(nomDe(a)),t((grupoDe(a)||{}).nombre||''),...ev.map(n),n(f.final),red===null?'':red,man?n(Number(a.nota_manual)):'',pub===null?'':n(pub)])});
+    bajar(new Blob(['\ufeff'+filas.map(r=>r.join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),`notas-${nombreArchivo(p.nombre)}-${hoy()}.csv`);toast('Notas exportadas: ábrelas con Excel')},
+  deshacer:()=>deshacer(),
   pdfreparto:()=>pdfDoc('Reparto del musical',htmlReparto(P())),
   pdfcuadrante:()=>pdfDoc('Cuadrante de técnicos',htmlCuadrante(P())),
   delprof:async el=>{const x=DB.profesores.find(q=>q.id===el.dataset.id);if(!x)return;if(DB.grupos.some(g=>g.profesor_id===x.id))return toast('Ese profesor tiene un grupo asignado: cambia antes el profesor del grupo.',5000);if(confirm('¿Quitar a '+x.nombre+'? Sus marcas y valoraciones se conservan en las notas.')){await del('profesores',x.id);render()}},
@@ -1115,11 +1129,29 @@ const F={
     await ins('alumnos',ids.map(id=>{const a=DB.alumnos.find(q=>q.id===id);return {proyecto_id:np.id,nombre:a.nombre,grupo:'',grupo_id:gmap[a.grupo_id]||null}}));
     view={...view,pid:np.id,tab:'conf',conf:'reparto'};toast('Proyecto de Bachillerato creado. Reparte los roles.');render()}
 };
-document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el||!A[el.dataset.act])return;if(el.tagName==='A')e.preventDefault();A[el.dataset.act](el,e)});
-document.addEventListener('change',e=>{const el=e.target.closest('[data-chg]');if(el&&C[el.dataset.chg])C[el.dataset.chg](el)});
+function bajar(blob,nombre){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=nombre;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)}
+const nombreArchivo=n=>String(n||'musical').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'')||'musical';
+let UNDO=null;
+const UNDO_ACTS={mark:['marcas','sesiones'],roldia:['marcas'],rolcolor:['marcas'],valrol:['valoraciones'],cerrar:['cierresDia'],reabrir:['cierresDia'],evgrupo:['evGrupo'],cerrarval:['cierres'],reabrirval:['cierres'],elige:['marcas','valoraciones'],apmark:['apMarcas','sesiones'],apval:['apValoraciones']};
+const UNDO_CHG={resest:['resultados'],resval:['resultados']};
+const UNDO_TXT={mark:'Marca cambiada',roldia:'Rol del día cambiado',rolcolor:'Carita del rol cambiada',valrol:'Valoración del rol cambiada',cerrar:'Día cerrado',reabrir:'Día reabierto',evgrupo:'Nota del evento cambiada',cerrarval:'Evaluación cerrada',reabrirval:'Evaluación reabierta',elige:'Valoración elegida',apmark:'Marca del apoyo cambiada',apval:'Valoración del apoyo cambiada',resest:'Excepción del evento cambiada',resval:'Valor de la falta cambiado'};
+const clona=x=>JSON.parse(JSON.stringify(x));
+async function conUndo(nombre,keys,fn){const antes={};keys.forEach(k=>antes[k]=clona(DB[k]));const r=await fn();if(keys.some(k=>JSON.stringify(DB[k])!==JSON.stringify(antes[k])))ofrecerUndo(nombre,antes);return r}
+function ofrecerUndo(nombre,antes){UNDO={nombre,antes};let u=document.getElementById('undo');if(!u){u=document.createElement('div');u.id='undo';u.setAttribute('role','status');document.body.appendChild(u)}
+  u.innerHTML=`<span>${esc(UNDO_TXT[nombre]||'Cambio')}</span><button type="button" data-act="deshacer">${IC.undo} Deshacer</button>`;u.style.display='flex';clearTimeout(u._t);u._t=setTimeout(()=>{u.style.display='none';UNDO=null},9000)}
+async function deshacer(){
+  if(!UNDO)return;const u=UNDO;UNDO=null;const el=document.getElementById('undo');if(el)el.style.display='none';
+  const orden=['marcas','apMarcas','valoraciones','apValoraciones','resultados','evGrupo','cierresDia','cierres','sesiones'],keys=Object.keys(u.antes).sort((a,b)=>orden.indexOf(a)-orden.indexOf(b));
+  const quitar=async k=>{const ids=new Set(u.antes[k].map(r=>r.id));for(const r of DB[k].filter(r=>!ids.has(r.id))){const {error}=await sb.from(TBL[k]).delete().eq('id',r.id);if(error)fail(error)}};
+  const poner=async k=>{const ahora=new Map(DB[k].map(r=>[r.id,r]));for(const r of u.antes[k]){const x=ahora.get(r.id);if(!x){const {error}=await sb.from(TBL[k]).upsert(r);if(error)fail(error)}else if(JSON.stringify(x)!==JSON.stringify(r)){const {id,owner_id,...resto}=r;const {error}=await sb.from(TBL[k]).update(resto).eq('id',r.id);if(error)fail(error)}}};
+  for(const k of keys)await quitar(k);for(const k of [...keys].reverse())await poner(k);
+  keys.forEach(k=>DB[k]=clona(u.antes[k]));view.motivo=null;render();toast('Deshecho')}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el||!A[el.dataset.act])return;if(el.tagName==='A')e.preventDefault();const n=el.dataset.act,ks=UNDO_ACTS[n];if(ks)conUndo(n,ks,()=>A[n](el,e));else A[n](el,e)});
+document.addEventListener('change',e=>{const el=e.target.closest('[data-chg]');if(!el||!C[el.dataset.chg])return;const n=el.dataset.chg,ks=UNDO_CHG[n];if(ks)conUndo(n,ks,()=>C[n](el));else C[n](el)});
 document.addEventListener('submit',e=>{const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();F[f.dataset.form](Object.fromEntries(new FormData(f)),f)});
 document.addEventListener('keydown',e=>{
   if((e.metaKey||e.ctrlKey)&&String(e.key).toLowerCase()==='k'&&auth.user&&P()){e.preventDefault();view.buscar=true;render();return}
+  if((e.metaKey||e.ctrlKey)&&!e.shiftKey&&String(e.key).toLowerCase()==='z'&&UNDO&&!/^(INPUT|TEXTAREA|SELECT)$/.test((e.target||{}).tagName||'')){e.preventDefault();deshacer();return}
   if(e.key==='Escape'&&(view.panel||view.nota||view.buscar||view.motivo||view.hoja)){view.panel=null;view.nota=null;view.buscar=false;view.motivo=null;view.hoja=false;render()}
   if(e.key==='Enter'&&e.target&&e.target.id==='qalumno'){e.preventDefault();const b=document.querySelector('#bres button');if(b)b.click()}
 });
